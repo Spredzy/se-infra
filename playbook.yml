@@ -1,0 +1,11 @@
+---
+- name: Radio
+  hosts: radio
+  remote_user: vagrant
+  become: yes
+  roles:
+    - postgresql
+    - rabbitmq
+    - httpd
+    - icecast
+    - airtime

@@ -1,0 +1,6 @@
+---
+- name: Install Icecast server
+  yum: name=icecast state=present
+
+- name: Start Icecast service
+  service: name=icecast state=started enabled=yes

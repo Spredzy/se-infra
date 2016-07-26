@@ -1,0 +1,19 @@
+---
+- name: Install PostgreSQL server and client
+  yum: name={{ item }}
+  with_items:
+    - postgresql-server
+    - postgresql
+    - python-psycopg2
+
+
+- name: Initialize the PostgreSQL database server
+  shell: postgresql-setup initdb
+  register: command_result
+  failed_when: "'is not empty!' not in command_result.stdout"
+
+
+- name: Start PostgreSQL service
+  service: name=postgresql state=started enabled=yes
+
+

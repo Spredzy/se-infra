@@ -1,0 +1,147 @@
+---
+# Dependencies Items
+#
+- name: Install OPAM repository
+  yum_repository:
+    name: home_ocaml
+    description: opam (CentOS_7)
+    baseurl: http://download.opensuse.org/repositories/home:/ocaml/CentOS_7/
+    gpgkey: http://download.opensuse.org/repositories/home:/ocaml/CentOS_7/repodata/repomd.xml.key
+    gpgcheck: yes
+
+- name: Install required dependencies
+  yum: name={{ item }}
+  with_items:
+    # PHP Related Items
+    #
+    - php
+    - php-gd
+    - php-pear
+    - php-mbstring
+    - php-pgsql
+    - php-ZendFramework
+    - php-ZendFramework-Db-Adapter-Pdo-Pgsql
+    - mod_php
+    # Other
+    - lsof
+    - gcc
+    - patch
+    - ocaml
+    - m4
+    - opam
+
+
+- name: Initialize opam (ocaml package manager)
+  shell: opam init
+
+- name: Install camomile
+  shell: opam install camomile
+
+- name: Copy CAMOMILE_DIR to the proper directory
+  shell: cp -r /root/.opam/system/share/camomile /usr/share/
+
+
+- name: Install required dependencies (Liquidsoap)
+  yum: name={{ item }}
+  with_items:
+    - ftp://rpmfind.net/linux/fedora/linux/releases/23/Everything/x86_64/os/Packages/l/liblo-0.28-1.fc23.x86_64.rpm
+    - ftp://rpmfind.net/linux/atrpms/el7-x86_64/atrpms/stable/libmad0-0.15.1b-4.el7.x86_64.rpm
+    - ftp://rpmfind.net/linux/atrpms/el7-x86_64/atrpms/stable/libmad-0.15.1b-4.el7.x86_64.rpm
+    - ftp://rpmfind.net/linux/atrpms/el7-x86_64/atrpms/stable/libmp3lame0-3.99.3-23.el7.x86_64.rpm
+    - ftp://rpmfind.net/linux/sourceforge/w/wa/washtub/repos/liquidsoap/23/x86_64/liquidsoap-1.2.0-1.fc23.x86_64.rpm
+
+- name: Install (clone) the airtime repository
+  git: repo=git://github.com/sourcefabric/airtime.git
+       dest=/root/airtime
+       version=airtime-2.5.2.1
+
+# Infrastructure Items
+#
+- name: Create the airtime PostgreSQL Database
+  postgresql_db: name=airtime
+  become: yes
+  become_user: postgres
+
+- name: Create the airtime PostgreSQL user
+  postgresql_user: db=airtime name=airtime password=airtime priv=ALL
+  become: yes
+  become_user: postgres
+
+
+- name: Create RabbitMQ /airtime vhost
+  rabbitmq_vhost: name=/airtime state=present
+
+
+- name: Create RabbitMQ airtime user
+  rabbitmq_user: user=airtime
+                 password=airtime
+                 vhost=/airtime
+                 configure_priv=.*
+                 read_priv=.*
+                 write_priv=.*
+                 state=present
+
+# Installatin Items
+#
+- name: Install required python modules
+  shell: python /root/airtime/python_apps/{{ item }}/setup.py install
+  with_items:
+    - std_err_override
+    - api_clients
+    - media-monitor
+    - pypo 
+
+# Configuration Items
+#
+- name: Set the date.timezone field in php.ini
+
+  ini_file: dest=/etc/php.ini
+            section=Date
+            option='date.timezone'
+            value='Europe/Paris'
+  
+#- name: Create the airtime.conf
+  #copy: src=etc/airtime/airtime.conf
+        #dest=/etc/airtime/airtime.conf
+
+- name: Create Airtime directories
+  file: path={{ item }} state=directory
+  with_items:
+    - /etc/airtime
+    - /srv/airtime
+    - /srv/airtime/upload
+    - /srv/airtime/stor
+    - /var/log/airtime
+
+- name: Create Airtime log file
+  file: path=/var/log/airtime/zendphp.log
+        mode=0777
+        state=touch
+
+- name: Set appropriate owners for files
+  file: path={{ item }}
+        owner=apache
+        group=apache
+        recurse=yes
+  with_items:
+    - /etc/airtime
+    - /srv/airtime
+    - /var/log/airtime
+
+- name: Set appropriate ACLs for files
+  acl: name={{ item }}
+       entry="default:group:apache:rwX"
+       state=present
+       recursive=yes
+  with_items:
+    - /etc/airtime
+    - /srv/airtime
+    - /var/log/airtime
+
+- name: Install Airtime in WEB_ROOT
+  shell: cp -r /root/airtime/airtime_mvc /var/www/html/airtime
+
+- name: Create the HTTPD virtual host
+  copy: src=etc/httpd/conf.d/airtime.conf 
+        dest=/etc/httpd/conf.d/airtime.conf
+

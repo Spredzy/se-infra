@@ -1,0 +1,7 @@
+---
+- name: Install Apache HTTPD server
+  yum: name=httpd
+
+
+- name: Start HTTPD server
+  service: name=httpd state=started enabled=yes
